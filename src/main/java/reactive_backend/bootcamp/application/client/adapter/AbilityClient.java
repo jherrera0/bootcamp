@@ -41,4 +41,13 @@ public class AbilityClient implements IAbilityClientPort {
                 .then();
 
     }
+
+    @Override
+    public Mono<List<Ability>> getAllAbilitiesByBootcampId(Integer id) {
+        return webClient.get()
+                .uri("/bootcamp/getAllAbilitiesByBootcampId?id={id}", id)
+                .retrieve()
+                .bodyToFlux(Ability.class)
+                .collectList();
+    }
 }
