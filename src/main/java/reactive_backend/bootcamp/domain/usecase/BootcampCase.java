@@ -4,11 +4,14 @@ import reactive_backend.bootcamp.domain.api.IBootcampServicePort;
 import reactive_backend.bootcamp.domain.exception.*;
 import reactive_backend.bootcamp.domain.model.Ability;
 import reactive_backend.bootcamp.domain.model.Bootcamp;
+import reactive_backend.bootcamp.domain.model.PageCustom;
 import reactive_backend.bootcamp.domain.spi.IAbilityClientPort;
 import reactive_backend.bootcamp.domain.spi.IBootcampPersistencePort;
 import reactive_backend.bootcamp.domain.util.ConstValidation;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -54,6 +57,75 @@ public class BootcampCase implements IBootcampServicePort {
                                                 return savedBootcamp;
                                             })));
                 });
+    }
+
+    @Override
+    public Mono<PageCustom<Bootcamp>> getAllBootcamps(String orderDirection, String sortField, Integer pageSize, Integer currentPage) {
+        Mono<PageCustom<Bootcamp>> error = validateParametersPage(orderDirection, sortField, pageSize, currentPage);
+        if (error != null) return error;
+
+        return bootcampPersistencePort.getAllBootcamps(pageSize, currentPage)
+                .flatMap(bootcampPageCustom -> {
+                    if (bootcampPageCustom.getTotalPages() < bootcampPageCustom.getCurrentPage() + ConstValidation.ONE)
+                        return Mono.error(new ListBootcampPageInvalidException());
+
+                    return Flux.fromIterable(bootcampPageCustom.getItems())
+                            .flatMapSequential(bootcamp -> abilityClientPort.getAllAbilitiesByBootcampId(bootcamp.getId())
+                                    .flatMap(abilities -> {
+                                        bootcamp.setAbilities(abilities);
+                                        return Mono.just(bootcamp);
+                                    }))
+                            .collectList()
+                            .flatMap(bootcamps -> {
+                                bootcampPageCustom.setItems(bootcamps);
+
+                                if (sortField.equals(ConstValidation.NAME) || sortField.equals(ConstValidation.ABILITIES_SIZE))
+                                    return sortByField(bootcamps, sortField, orderDirection)
+                                            .flatMap(sorted -> {
+                                                bootcampPageCustom.setItems(sorted);
+                                                return Mono.just(bootcampPageCustom);
+                                            });
+
+                                return Mono.just(bootcampPageCustom);
+                            });
+                });
+    }
+
+
+    private Mono<List<Bootcamp>> sortByField(List<Bootcamp> bootcamps, String sortField, String orderDirection) {
+        if (sortField.equals(ConstValidation.NAME)) {
+            if (orderDirection.equals(ConstValidation.ASC)) {
+                bootcamps.sort(Comparator.comparing(Bootcamp::getName));
+            } else {
+                bootcamps.sort((b1, b2) -> b2.getName().compareTo(b1.getName()));
+            }
+        } else if (sortField.equals(ConstValidation.ABILITIES_SIZE)) {
+            if (orderDirection.equals(ConstValidation.ASC)) {
+                bootcamps.sort(Comparator.comparingInt(b -> b.getAbilities().size()));
+            } else {
+                bootcamps.sort((b1, b2) -> Integer.compare(b2.getAbilities().size(), b1.getAbilities().size()));
+            }
+        }
+        return Mono.just(bootcamps);
+    }
+
+    private Mono<PageCustom<Bootcamp>> validateParametersPage(String orderDirection, String sortField, Integer pageSize, Integer currentPage) {
+        if(orderDirection.compareTo(ConstValidation.ASC) != ConstValidation.ZERO &&
+                orderDirection.compareTo(ConstValidation.DESC) != ConstValidation.ZERO) {
+            return Mono.error(new ListBootcampOrderDirectionInvalidException());
+        }
+        if (sortField.compareTo(ConstValidation.NAME) != ConstValidation.ZERO &&
+                sortField.compareTo(ConstValidation.ABILITIES_SIZE) != ConstValidation.ZERO) {
+            return Mono.error(new ListBootcampSortFieldInvalidException());
+        }
+        if (pageSize <= ConstValidation.ZERO) {
+            return Mono.error(new ListBootcampPageSizeInvalidException());
+        }
+
+        if(currentPage < ConstValidation.ZERO) {
+            return Mono.error(new ListBootcampPageCurrentInvalidException());
+        }
+        return null;
     }
 
     private boolean hasDuplicatedAbilities(List<Integer> abilities) {
