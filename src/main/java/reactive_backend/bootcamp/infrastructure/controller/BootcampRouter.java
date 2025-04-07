@@ -16,6 +16,8 @@ public class BootcampRouter {
     @Bean
     public RouterFunction<ServerResponse> bootcampRoutes(IBootcampHandler bootcampHandler) {
         return route(POST(ConstRoute.BOOTCAMP_REST_ROUTE + ConstRoute.CREATE_BOOTCAMP_REST_ROUTE),
-                bootcampHandler::createBootcamp);
+                bootcampHandler::createBootcamp)
+                .andRoute(POST(ConstRoute.BOOTCAMP_REST_ROUTE + ConstRoute.LIST_BOOTCAMPS_REST_ROUTE),
+                        bootcampHandler::getAllBootcamps);
     }
 }
