@@ -35,6 +35,9 @@ class AbilityClientTest {
     private WebClient.RequestBodyUriSpec requestBodyUriSpec;
 
     @Mock
+    private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
+
+    @Mock
     private WebClient.RequestBodySpec requestBodySpec;
 
     @Mock
@@ -178,4 +181,40 @@ class AbilityClientTest {
                 .expectErrorMatches(throwable -> throwable.equals(expectedException))
                 .verify();
     }
+    @Test
+    void getAllAbilitiesByBootcampId_ShouldReturnListOfAbilities() {
+        Integer bootcampId = 1;
+        List<Ability> expectedAbilities = Arrays.asList(
+                new Ability(1, "Java", "Java", List.of()),
+                new Ability(2, "Spring", "Spring", List.of())
+        );
+
+        when(webClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri("/bootcamp/getAllAbilitiesByBootcampId?id={id}", bootcampId)).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToFlux(Ability.class)).thenReturn(Flux.fromIterable(expectedAbilities));
+
+        Mono<List<Ability>> result = abilityClient.getAllAbilitiesByBootcampId(bootcampId);
+
+        StepVerifier.create(result)
+                .expectNext(expectedAbilities)
+                .verifyComplete();
+    }
+
+    @Test
+    void getAllAbilitiesByBootcampId_ShouldHandleEmptyResponse() {
+        Integer bootcampId = 1;
+
+        when(webClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri("/bootcamp/getAllAbilitiesByBootcampId?id={id}", bootcampId)).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToFlux(Ability.class)).thenReturn(Flux.empty());
+
+        Mono<List<Ability>> result = abilityClient.getAllAbilitiesByBootcampId(bootcampId);
+
+        StepVerifier.create(result)
+                .expectNext(List.of())
+                .verifyComplete();
+    }
+
 }
