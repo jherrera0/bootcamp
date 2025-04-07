@@ -9,4 +9,6 @@ public interface IAbilityClientPort {
     Mono<List<Ability>> findAllAbilitiesByIds(List<Integer> ids);
 
      Mono<Void> linkAbilitiesToBootcamp(Integer id, List<Ability> abilities);
+
+    Mono<List<Ability>> getAllAbilitiesByBootcampId(Integer id);
 }
